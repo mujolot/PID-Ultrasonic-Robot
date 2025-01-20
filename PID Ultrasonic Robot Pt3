@@ -1,0 +1,80 @@
+#include <Wire.h>
+#include <Adafruit_MotorShield.h>
+#include <Servo.h>
+
+Adafruit_MotorShield AFMS = Adafruit_MotorShield();
+Adafruit_DCMotor *motorM1 = AFMS.getMotor(1);
+Adafruit_DCMotor *motorM2 = AFMS.getMotor(2);
+Servo servo1;
+
+const int forwardButtonPin = 2;
+const int leftButtonPin = 3;
+const int rightButtonPin = 4;
+
+void setup() {
+  Serial.begin(9600);
+  AFMS.begin();
+  motorM1->setSpeed(120);
+  motorM2->setSpeed(105);
+
+  pinMode(forwardButtonPin, INPUT_PULLUP);
+  pinMode(leftButtonPin, INPUT_PULLUP);
+  pinMode(rightButtonPin, INPUT_PULLUP);
+}
+
+void moveForward() {
+  Serial.println("Moving forward");
+  motorM1->run(FORWARD);
+  motorM2->run(FORWARD);
+}
+
+void stopMotors() {
+  Serial.println("Stopping motors");
+  motorM1->run(RELEASE);
+  motorM2->run(RELEASE);
+}
+
+void leftTurn() {
+  Serial.println("Turning left");
+  motorM1->setSpeed(87);
+  motorM2->setSpeed(78);
+  motorM1->run(BACKWARD);
+  motorM2->run(FORWARD);
+  delay(500);
+  motorM1->setSpeed(120);
+  motorM2->setSpeed(111);
+  stopMotors();
+}
+
+void rightTurn() {
+  Serial.println("Turning right");
+  motorM1->setSpeed(87);
+  motorM2->setSpeed(78);
+  motorM1->run(FORWARD);
+  motorM2->run(BACKWARD);
+  delay(500);
+  motorM1->setSpeed(120);
+  motorM2->setSpeed(111);
+  stopMotors();
+}
+
+void loop() {
+  // Check forward button state
+  if (digitalRead(forwardButtonPin) == LOW) {
+    moveForward();
+  } else {
+    stopMotors();
+  }
+
+  // Check left button state
+  if (digitalRead(leftButtonPin) == LOW) {
+    leftTurn();
+    delay(1000); // Adjust delay as needed
+  }
+
+  // Check right button state
+  if (digitalRead(rightButtonPin) == LOW) {
+    rightTurn();
+    delay(1000); // Adjust delay as needed
+  }
+}
