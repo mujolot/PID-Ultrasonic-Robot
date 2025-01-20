@@ -1,0 +1,117 @@
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+
+RF24 radio(9, 8);  // CE, CSN
+const byte address[6] = "JAMES";
+
+const int leftButtonPin = 7;
+const int straightButtonPin = 6;
+const int rightButtonPin = 5;
+
+// Define debounce interval
+const unsigned long debounceInterval = 50; // Adjust as needed
+
+unsigned long lastDebounceTimeLeft = 0;     // Last time the left button pin was toggled
+unsigned long lastDebounceTimeStraight = 0; // Last time the straight button pin was toggled
+unsigned long lastDebounceTimeRight = 0;    // Last time the right button pin was toggled
+unsigned long lastForwardCommandTime = 0;   // Last time the forward command was sent
+
+int lastButtonStateLeft = HIGH;          // Previous reading from the left button pin
+int lastButtonStateStraight = HIGH;      // Previous reading from the straight button pin
+int lastButtonStateRight = HIGH;         // Previous reading from the right button pin
+
+bool leftButtonPressed = false;     // Flag to track if left button is pressed
+bool straightButtonPressed = false; // Flag to track if straight button is pressed
+bool rightButtonPressed = false;    // Flag to track if right button is pressed
+
+bool forwardCommandSent = false;    // Flag to track if forward command is sent
+
+void setup() {
+  Serial.begin(9600);
+  radio.begin();
+  radio.openWritingPipe(address);
+
+  pinMode(leftButtonPin, INPUT_PULLUP);    // Left button pin with built-in pull-up resistor
+  pinMode(straightButtonPin, INPUT_PULLUP);// Straight button pin with built-in pull-up resistor
+  pinMode(rightButtonPin, INPUT_PULLUP);   // Right button pin with built-in pull-up resistor
+}
+
+void loop() {
+  // Read button states with debouncing
+  int leftButtonState = digitalRead(leftButtonPin);
+  int straightButtonState = digitalRead(straightButtonPin);
+  int rightButtonState = digitalRead(rightButtonPin);
+
+  // Check if the left button has been pressed and debounce
+  if (leftButtonState != lastButtonStateLeft) {
+    lastDebounceTimeLeft = millis();
+  }
+
+  // Check if the straight button has been pressed and debounce
+  if (straightButtonState != lastButtonStateStraight) {
+    lastDebounceTimeStraight = millis();
+  }
+
+  // Check if the right button has been pressed and debounce
+  if (rightButtonState != lastButtonStateRight) {
+    lastDebounceTimeRight = millis();
+  }
+
+  // Determine command based on debounced button states
+  int command = 0; // Default: do nothing
+
+  // Check if enough time has passed since last debounce
+  if (millis() - lastDebounceTimeLeft > debounceInterval) {
+    if (leftButtonState == LOW && !leftButtonPressed) {
+      Serial.println("Left button pressed");
+      leftButtonPressed = true;
+    } else if (leftButtonState == HIGH && leftButtonPressed) {
+      Serial.println("Left button released");
+      leftButtonPressed = false;
+    }
+  }
+
+  if (millis() - lastDebounceTimeStraight > debounceInterval) {
+    if (straightButtonState == LOW && !straightButtonPressed) {
+      Serial.println("Straight button pressed");
+      command = 2; // Command for going straight
+      straightButtonPressed = true;
+    } else if (straightButtonState == HIGH && straightButtonPressed) {
+      Serial.println("Straight button released");
+      straightButtonPressed = false;
+    }
+  }
+
+  if (millis() - lastDebounceTimeRight > debounceInterval) {
+    if (rightButtonState == LOW && !rightButtonPressed) {
+      Serial.println("Right button pressed");
+      command = 3; // Command for right turn
+      rightButtonPressed = true;
+    } else if (rightButtonState == HIGH && rightButtonPressed) {
+      Serial.println("Right button released");
+      rightButtonPressed = false;
+    }
+  }
+
+  // Check if the left button is held down and send continuous forward command
+  if (leftButtonPressed) {
+    if (!forwardCommandSent || millis() - lastForwardCommandTime >= 0) {
+      Serial.println("Moving forward");
+      command = 1; // Command for moving forward
+      forwardCommandSent = true;
+      lastForwardCommandTime = millis();
+    }
+  } else {
+    forwardCommandSent = false;
+  }
+
+  // Update last button states
+  lastButtonStateLeft = leftButtonState;
+  lastButtonStateStraight = straightButtonState;
+  lastButtonStateRight = rightButtonState;
+
+  // Send command over RF
+  radio.write(&command, sizeof(command));
+  delay(50); // Adjust delay as needed
+}
