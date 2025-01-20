@@ -1,0 +1,95 @@
+#include <Wire.h>
+#include <Adafruit_MotorShield.h>
+#include "utility/Adafruit_MS_PWMServoDriver.h"
+
+
+Adafruit_MotorShield AFMS = Adafruit_MotorShield();
+Adafruit_DCMotor *motorM1 = AFMS.getMotor(1); // Left motor
+Adafruit_DCMotor *motorM2 = AFMS.getMotor(2); // Right motor
+
+
+const int trigPin = A0;
+const int echoPin = A1;
+
+
+float distance = 0;
+float distance_setpoint = 40; // cm
+float distance_error = 0;
+float distance_integral = 0;
+float distance_derivative = 0;
+float distance_last_error = 0;
+float kp = 0.49825;
+float ki = 0;
+float kd = 3.4345;
+float motor_speed_M1 = 76; // Speed for motor M1 (left motor)
+float motor_speed_M2 = 76; // Speed for motor M2 (right motor)
+float motor_speed_correction = 0;
+float imbalance_correction = 4; // Adjust this value based on observation
+
+
+void setup() {
+Serial.begin(9600);
+pinMode(trigPin, OUTPUT);
+pinMode(echoPin, INPUT);
+AFMS.begin();
+motorM1->setSpeed(motor_speed_M1);
+motorM2->setSpeed(motor_speed_M2);
+
+
+distance_last_error = 0; 
+}
+
+
+void loop() {
+digitalWrite(trigPin, LOW);
+delayMicroseconds(2);
+digitalWrite(trigPin, HIGH);
+delayMicroseconds(10);
+digitalWrite(trigPin, LOW);
+
+
+long duration = pulseIn(echoPin, HIGH);
+distance = duration * 0.034 / 2;
+
+
+distance_error = distance_setpoint - distance;
+distance_integral += distance_error;
+distance_derivative = distance_error - distance_last_error;
+distance_last_error = distance_error;
+
+
+motor_speed_correction = kp * distance_error + ki * distance_integral + kd * distance_derivative;
+
+
+if (distance > 0 && distance < 200) {
+// Adjust motor speeds based on distance error sign
+float correction_sign = distance_error > 0 ? 1 : -1;
+float motorM1_speed = motor_speed_M1 + correction_sign * motor_speed_correction;
+float motorM2_speed = motor_speed_M2 - correction_sign * motor_speed_correction * (1 + imbalance_correction / 100);
+
+
+
+
+distance_integral = constrain(distance_integral, -100, 100);
+
+
+motorM1_speed = constrain(motorM1_speed, 0, 255);
+motorM2_speed = constrain(motorM2_speed, 0, 255);
+
+
+motorM1->run(FORWARD);
+motorM2->run(FORWARD);
+motorM1->setSpeed(motorM1_speed);
+motorM2->setSpeed(motorM2_speed);
+} else {
+motorM1->run(RELEASE);
+motorM2->run(RELEASE);
+}
+}
+
+
+
+
+
+
+
